@@ -82,8 +82,8 @@ def make_ip(src: str, dst: str, payload_len: int) -> bytes:
 def make_tcp(
     src_ip: str,
     dst_ip: str,
-    sport: int,
-    dport: int,
+    src_port: int,
+    dst_port: int,
     seq: int,
     ack: int,
     flags: int,
@@ -106,7 +106,7 @@ def make_tcp(
     #   H - Urgent pointer                            (2 bytes)
     hdr = struct.pack(
         '!HHIIBBHHH',
-        sport, dport, seq, ack,
+        src_port, dst_port, seq, ack,
         0x50,       # data offset: 5 32-bit words (20 bytes), no options
         flags,      # TCP flags
         5840,       # window size
@@ -134,7 +134,7 @@ def make_tcp(
     # Repack with the real checksum
     return struct.pack(
         '!HHIIBBHHH',
-        sport, dport, seq, ack,
+        src_port, dst_port, seq, ack,
         0x50, flags, 5840, chk, 0,
     ) + data
 
@@ -143,22 +143,22 @@ def send_pkt(
     sock: socket.socket,
     src_ip: str,
     dst_ip: str,
-    sport: int,
-    dport: int,
+    src_port: int,
+    dst_port: int,
     seq: int,
     ack: int,
     flags: int,
     data: bytes = b'',
 ) -> None:
     """Construct and send a full IP + TCP packet on the raw socket."""
-    tcp = make_tcp(src_ip, dst_ip, sport, dport, seq, ack, flags, data)
+    tcp = make_tcp(src_ip, dst_ip, src_port, dst_port, seq, ack, flags, data)
     sock.sendto(make_ip(src_ip, dst_ip, len(tcp)) + tcp, (dst_ip, 0))
 
 
 def parse_pkt(pkt: bytes) -> tuple[str, int, int, int, int, int, bytes]:
     """Extract key fields from a raw IP + TCP packet.
 
-    Returns (src_ip, sport, dport, seq, ack, flags, payload).
+    Returns (src_ip, src_port, dst_port, seq, ack, flags, payload).
     """
     # Pull the source IP from the IPv4 header (field index 8 = src addr)
     # '!BBHHHBBH4s4s' mirrors the IP header layout from make_ip()
@@ -167,12 +167,12 @@ def parse_pkt(pkt: bytes) -> tuple[str, int, int, int, int, int, bytes]:
     )
 
     # Unpack the TCP header fields – same '!HHIIBBHHH' layout as make_tcp()
-    sport, dport, seq, ack, _, flags, _, _, _ = struct.unpack(
+    src_port, dst_port, seq, ack, _, flags, _, _, _ = struct.unpack(
         '!HHIIBBHHH', pkt[20:40]
     )
 
     # Everything past byte 40 is TCP payload (assumes no IP/TCP options)
-    return src_ip, sport, dport, seq, ack, flags, pkt[40:]
+    return src_ip, src_port, dst_port, seq, ack, flags, pkt[40:]
 
 
 def get_local_ip(dst: str) -> str:
@@ -208,27 +208,27 @@ def run_server(port: int) -> None:
 
     try:
         while True:
-            pkt, _ = sock.recvfrom(65535)
-            src_ip, sport, dport, seq_in, ack_in, flags, data = parse_pkt(pkt)
+            pkt = sock.recv(65535)
+            src_ip, src_port, dst_port, seq_in, ack_in, flags, data = parse_pkt(pkt)
 
             # Ignore packets not addressed to our port
-            if dport != port:
+            if dst_port != port:
                 continue
 
             # --- Three-way handshake (server side) ---
 
             # Step 1: incoming SYN – reply with SYN-ACK
             if flags & SYN and not flags & ACK and not connected:
-                peer_ip, peer_port, peer_seq = src_ip, sport, seq_in
+                peer_ip, peer_port, peer_seq = src_ip, src_port, seq_in
                 local_ip = get_local_ip(peer_ip)
-                print(f"[*] SYN  <- {src_ip}:{sport}  (local={local_ip})")
+                print(f"[*] SYN  <- {src_ip}:{src_port}  (local={local_ip})")
                 send_pkt(sock, local_ip, peer_ip, port, peer_port, seq, peer_seq + 1, SYN | ACK)
-                print(f"[*] SYN-ACK -> {src_ip}:{sport}")
+                print(f"[*] SYN-ACK -> {src_ip}:{src_port}")
                 seq += 1  # SYN consumes one sequence number
 
             # Step 2: incoming ACK – handshake complete
             elif flags == ACK and not connected and src_ip == peer_ip:
-                print(f"[*] ACK  <- {src_ip}:{sport}  -- connection established")
+                print(f"[*] ACK  <- {src_ip}:{src_port}  -- connection established")
                 connected = True
                 peer_seq = seq_in
 
