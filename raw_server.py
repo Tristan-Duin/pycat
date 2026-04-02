@@ -45,17 +45,17 @@ def make_ip(src: str, dst: str, payload_len: int) -> bytes:
     pkt_id = random.randint(0, 65535)
 
     # Pack the IPv4 header with checksum = 0 for initial computation.
-    # '!BBHHHBBH4s4s' layout (20 bytes total):
-    #   B  - Version (4) + IHL (5) combined as 0x45  (1 byte)
-    #   B  - Type of Service / DSCP                  (1 byte)
+    #   '!BBHHHBBH4s4s' layout                        (20 bytes total):
+    #   B  - Version (4) + IHL (5) combined as 0x45   (1 byte)
+    #   B  - Type of Service / DSCP                   (1 byte)
     #   H  - Total Length (IP header + payload)       (2 bytes)
     #   H  - Identification (random per-packet ID)    (2 bytes)
     #   H  - Flags + Fragment Offset (0 = don't frag) (2 bytes)
     #   B  - TTL (64 hops)                            (1 byte)
     #   B  - Protocol (6 = TCP)                       (1 byte)
     #   H  - Header Checksum (0 placeholder here)     (2 bytes)
-    #   4s - Source IP address      (4 bytes, packed)
-    #   4s - Destination IP address (4 bytes, packed)
+    #   4s - Source IP address                        (4 bytes, packed)
+    #   4s - Destination IP address                   (4 bytes, packed)
     hdr = struct.pack(
         '!BBHHHBBH4s4s',
         0x45,                       # IPv4, 5-word (20-byte) header
@@ -94,13 +94,13 @@ def make_tcp(
     The checksum is computed over a pseudo-header (required by the TCP spec)
     concatenated with the TCP header and payload.
     """
-    # TCP header – '!HHIIBBHHH' layout (20 bytes, no options):
-    #   H - Source port                              (2 bytes)
-    #   H - Destination port                         (2 bytes)
-    #   I - Sequence number                          (4 bytes)
-    #   I - Acknowledgment number                    (4 bytes)
-    #   B - Data offset (0x50 = 5 words / 20 bytes)  (1 byte)
-    #   B - TCP flags (SYN, ACK, FIN, PSH, etc.)     (1 byte)
+    #   TCP header – '!HHIIBBHHH' layout              (20 bytes, no options):
+    #   H - Source port                               (2 bytes)
+    #   H - Destination port                          (2 bytes)
+    #   I - Sequence number                           (4 bytes)
+    #   I - Acknowledgment number                     (4 bytes)
+    #   B - Data offset (0x50 = 5 words / 20 bytes)   (1 byte)
+    #   B - TCP flags (SYN, ACK, FIN, PSH, etc.)      (1 byte)
     #   H - Window size (5840 bytes)                  (2 bytes)
     #   H - Checksum (0 placeholder)                  (2 bytes)
     #   H - Urgent pointer                            (2 bytes)
@@ -114,7 +114,7 @@ def make_tcp(
         0,          # urgent pointer
     )
 
-    # TCP pseudo-header used for checksum calculation – '!4s4sBBH':
+    #   TCP pseudo-header used for checksum calculation – '!4s4sBBH':
     #   4s - Source IP address       (4 bytes)
     #   4s - Destination IP address  (4 bytes)
     #   B  - Reserved / zero         (1 byte)
